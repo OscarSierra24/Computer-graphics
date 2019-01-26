@@ -59,9 +59,8 @@
                 let indices = []
                 for(let i = 0; i<numberOfPoints; i++){
                     indices.push(i);
-                }
-                indices.push(0);
-                return indices;
+				}
+				return indices;
             }
 
 			function init(xCoord, yCoord, radius, numberOfPoints)
@@ -142,7 +141,7 @@
 				// Draw the scene
 				// Any drawing commands will use the current shader program, the current buffer, and the currently-enabled attribute bindings	
 
-				var mode = gl.LINE_STRIP;	// The type primitive to render
+				var mode = gl.TRIANGLE_FAN;	// The type primitive to render
 				var count = indices.length;	// the number of elements to be rendered
 				var type = gl.UNSIGNED_SHORT; // the type of the values in the element array buffer
 				var offset = 0; 	// Bytes offset in the element array buffer
@@ -154,7 +153,7 @@
                 let xCoord = 0.;
                 let yCoord = 0.;
                 let radius = 1.;
-                let numberOfPoints = 3;
+                let numberOfPoints = 100;
 				init(xCoord, yCoord, radius, numberOfPoints);
 				render();
 			}
