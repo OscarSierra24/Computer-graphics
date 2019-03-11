@@ -1,0 +1,17 @@
+{
+    "faces": [0, 1, 1, 2, 2, 3, 3, 0],
+    "uvs": [],
+    "name": "SquareGeometry.1",
+    "metadata": {
+        "faces": 2,
+        "uvs": 0,
+        "generator": "io_three",
+        "vertices": 4,
+        "version": 3,
+        "normals": 0,
+        "type": "Geometry"
+    },
+    "vertices": [1, 1, 0, -1, 1, 0, -1, -1, 0, 1, -1, 0],
+    "normals": [],
+    "vertexTextureCoords" : [0, 1, 0, 0]
+}
