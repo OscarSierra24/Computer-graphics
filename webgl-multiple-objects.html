@@ -1,0 +1,255 @@
+<!DOCTYPE HTML>
+<html lang="es">
+	<head>
+		<title>Hello World WebGL. Modular Version</title>
+		<meta charset="utf-8">
+
+		<style type="text/css">
+			#canvas{
+				border:2px solid blue;
+			}
+		</style>
+
+		<script id="vertexShader" type="x-shader/x-vertex">
+			attribute vec3 aPosition;
+			uniform mat4 uMVPMatrix;
+
+			void main(){
+				// P' = Mmodel-view-proj P
+				gl_Position = uMVPMatrix * vec4(aPosition, 1.); 
+			}
+		</script>
+
+		<script id="fragmentShader" type="x-shader/x-fragment">
+			// fragment shaders don't have a default precision, so mediump is ok
+			precision mediump float;
+
+			void main(){
+				gl_FragColor = vec4(1., 1., 1., 1.);	// white
+			}
+		</script>
+
+		<script type="text/javascript" src="create-shaders-lib.js"></script>
+		<script type="text/javascript" src="gl-matrix-min.js"></script>
+	</head>
+	<body onload="main();">
+		<canvas id="canvas" width="500" height="500"></canvas>
+
+		
+		<script type="text/javascript">	
+			"use strict"
+			var requestAnimationFrameID;
+
+			var allObjects = []
+
+			var canvas;
+			var gl;
+			var positions;
+			var indices;
+			var shaderProgram;
+			var positionBuffer;
+			var indicesBuffer;
+			var sceneReady = false;
+			var orbit = false;
+			
+			var tetha = 0, deltatetha = 0.2 * Math.PI/180;
+
+			var dragMode = "Rotate";
+			var dragging = false;	// Dragging or not
+
+			var xLast = 0;		// last position of the mouse
+			var yLast = 0;
+			var rotX = 0.;
+			var rotY = 0.;
+			//this.lookAt(this.eye, this.center, this.up);
+
+			var viewMatrix = mat4.create();
+			var eye = [0., 0. , 30.];
+			var target = [0., 0. , 0.];
+			var up = [0., 1. , 0.];
+			var radius = eye[2];
+
+			function saveData(rawFile){
+				var data = JSON.parse(rawFile);
+				var objeto = {
+					"Positions": data.vertices,
+    				"Indices": data.faces,
+					"prim": data.primitive
+				}
+				allObjects.push(objeto);
+				init();
+			}
+
+			function readTextFile(file, callback) {
+			    var rawFile = new XMLHttpRequest();
+			    rawFile.overrideMimeType("application/json");
+			    rawFile.open("GET", file, true);
+			    rawFile.onreadystatechange = function() {
+			        if (rawFile.readyState === 4 && rawFile.status == "200") {
+			            callback(rawFile.responseText);
+			        }
+    			}
+    			rawFile.send(null);
+			}
+
+
+			function loadScene(fileName, callback)
+			{
+				readTextFile(fileName, callback);
+			}
+
+			
+
+			function init()
+			{
+				// Initialize the GL context
+				canvas = document.getElementById("canvas");
+				gl = canvas.getContext("webgl");
+
+				// Initialize the shader program
+
+				var vertexShaderSrc = document.getElementById("vertexShader").text;
+				var fragmentShaderSrc = document.getElementById("fragmentShader").text;
+				var vertexShader = createShader(gl.VERTEX_SHADER, vertexShaderSrc);
+				var fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentShaderSrc);
+				shaderProgram = createShaderProgram(vertexShader, fragmentShader);
+
+				// Set shader program as current
+				gl.useProgram(shaderProgram);
+
+				// Initialize buffers
+
+				for(let i = 0; i < allObjects.length; i++){
+					allObjects[i]["PosBuffer"] = gl.createBuffer();
+					allObjects[i]["IndBuffer"] = gl.createBuffer();
+				}
+				if(requestAnimationFrameID){
+					window.cancelAnimationFrame(requestAnimationFrameID);
+				}
+				requestAnimationFrameID = window.requestAnimationFrame(render);
+			}
+
+			function render()
+			{
+					// Rendering code starts here!
+
+					// Mapping from clip-space coords to the viewport pixel coords
+					gl.viewport(0, 0, canvas.width, canvas.height);
+
+					// Set the clear color
+					gl.clearColor(0., 0., 0., 1.);	// black
+
+					// Clear the framebuffer
+					gl.clear(gl.COLOR_BUFFER_BIT);
+					
+					for(let i = 0; i < allObjects.length; i++){
+					//console.log(i);
+					
+					// Configure the vertex attributes
+
+					// Set buffer as current
+					gl.bindBuffer(gl.ARRAY_BUFFER, allObjects[i]["PosBuffer"]);
+					// Copy data
+					gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allObjects[i]["Positions"]), gl.STATIC_DRAW);
+
+					// Set buffer as current
+					gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, allObjects[i]["IndBuffer"]);
+					// Copy data
+					gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(allObjects[i]["Indices"]), gl.STATIC_DRAW);
+
+					// Locate attribute variables
+					var aPositionLocation = gl.getAttribLocation(shaderProgram, "aPosition");
+
+					// Set layout of the data
+					var size = 3;			// 3 values (x, y, z) per iteration
+					var type = gl.FLOAT;	// 32 bit floating point values
+					var normalize = false; 	// do not requiere normalization
+					var stride = 0;			// skip size*sizeof(type) bytes each iter
+					var offset = 0;			// start at the beginning of the buffer
+					gl.vertexAttribPointer(aPositionLocation, size, type, normalize, stride, offset);
+
+					// Enable the vertex attributes
+					gl.enableVertexAttribArray(aPositionLocation);
+
+					// Initialize uniform variables
+
+					// Model Matrix
+					var modelMatrix = mat4.create();
+
+					// View Matrix
+					eye = [0., 30., 0.];
+					target = [0., 0., 0.];
+					up = [0., 1., 0.];
+					tetha = tetha + deltatetha;
+					var xEye = radius * Math.sin(tetha); 
+					var zEye = radius * Math.cos(tetha); 
+					eye[0] = xEye;
+					eye[1] = 30;
+					eye[2] = zEye;
+					mat4.lookAt(viewMatrix, eye, target, up);
+
+					// Perspective Projection Matrix
+					var projMatrix = mat4.create();
+					var fovy = 60.;	// degrees
+					fovy = fovy * Math.PI / 180.;
+					var aspect = canvas.width / canvas.height;
+					var near = 0.1;
+					var far = 1000.;
+					mat4.perspective(projMatrix, fovy, aspect, near, far);
+
+					// Model-View-Proj Matrix
+					var modelViewMatrix = mat4.create();
+					mat4.multiply(modelViewMatrix, viewMatrix, modelMatrix);
+					var mvpMatrix = mat4.create();
+					mat4.multiply(mvpMatrix, projMatrix, modelViewMatrix);
+
+					var uMVPMatrixLocation = gl.getUniformLocation(shaderProgram, "uMVPMatrix");
+					gl.uniformMatrix4fv(uMVPMatrixLocation, false, mvpMatrix);
+	
+					// Draw the scene
+					// Any drawing commands will use the current shader program, the current buffer, and the currently-enabled attribute bindings	
+
+					var mode;	// The type primitive to render
+
+					switch (allObjects[i]["prim"]) {
+						case 0:
+							mode = gl.POINTS;
+							break;
+						case 1:
+							mode = gl.LINES;
+						case 2:
+							mode = gl.LINE_STRIP;
+							break;
+						case 3:
+							mode = gl.LINE_LOOP;
+						case 4:
+							mode = gl.TRIANGLES;
+							break;
+						case 5:
+							mode = gl.TRIANGLE_STRIP;
+						case 6:
+							mode = gl.TRIANGLE_FAN;
+							break;
+					}
+
+					var count = allObjects[i]["Indices"].length;	// the number of elements to be rendered
+					var type = gl.UNSIGNED_SHORT; // the type of the values in the element array buffer
+					var offset = 0; 	// Bytes offset in the element array buffer
+					gl.drawElements(mode, count, type, offset);
+				}
+				requestAnimationFrame(render);
+			}
+
+			function main()
+			{
+				var documents = ["teapot.json", "triangle.json", "cubo.json"]
+
+				for(var i = 0; i < documents.length; i++){
+					loadScene(documents[i], saveData);
+				}
+    			//do what you need here
+				init();							
+			}
+		</script>
+	</body>
+</html>
